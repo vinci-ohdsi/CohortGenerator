@@ -122,7 +122,7 @@ test_that("createAtcCohortTemplateDefinition", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
-    identifierExpression = "concept_id * 1000 + 5",
+    identifierExpression = "CAST(concept_id AS BIGINT) * 1000 + 5",
     mergeIngredientEras = FALSE,
     nameSuffix = ""
   )
