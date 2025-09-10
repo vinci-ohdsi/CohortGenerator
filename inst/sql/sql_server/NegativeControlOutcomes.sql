@@ -35,12 +35,12 @@ WHERE cohort_definition_id IN (
 )
 ;
 
-INSERT INTO @cohort_database_schema.@cohort_table (
+INSERT INTO @cohort_database_schema.@cohort_table WITH (TABLOCK) (
   subject_id,
   cohort_definition_id,
   cohort_start_date,
   cohort_end_date
-)
+) 
 SELECT
 	s.subject_id,
 	s.cohort_definition_id,
