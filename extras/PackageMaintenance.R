@@ -1,6 +1,6 @@
 # @file PackageMaintenance
 #
-# Copyright 2025 Observational Health Data Sciences and Informatics
+# Copyright 2026 Observational Health Data Sciences and Informatics
 #
 # This file is part of CohortGenerator
 # 
@@ -47,3 +47,15 @@ rmarkdown::render("vignettes/SamplingCohorts.Rmd",
                                           toc = TRUE,
                                           number_sections = TRUE))
 
+rmarkdown::render("vignettes/UsingTemplateCohorts.Rmd",
+                  output_file = "../inst/doc/UsingTemplateCohorts.pdf",
+                  rmarkdown::pdf_document(latex_engine = "pdflatex",
+                                          toc = TRUE,
+                                          number_sections = TRUE))
+
+# pkgdown - good to test, just to make sure
+#pkgdown::build_site()
+
+
+# Regenerate results for upload to embed in the package
+source("extras/CreateResultsForUpload.R")

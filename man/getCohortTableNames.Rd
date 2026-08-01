@@ -12,7 +12,9 @@ getCohortTableNames(
   cohortInclusionResultTable = paste0(cohortTable, "_inclusion_result"),
   cohortInclusionStatsTable = paste0(cohortTable, "_inclusion_stats"),
   cohortSummaryStatsTable = paste0(cohortTable, "_summary_stats"),
-  cohortCensorStatsTable = paste0(cohortTable, "_censor_stats")
+  cohortCensorStatsTable = paste0(cohortTable, "_censor_stats"),
+  cohortSubsetAttritionTable = paste0(cohortTable, "_subset_attrition"),
+  cohortChecksumTable = paste0(cohortTable, "_checksum")
 )
 }
 \arguments{
@@ -34,6 +36,10 @@ inclusion rule statistics.}
 
 \item{cohortCensorStatsTable}{Name of the censor stats table, one of the tables for storing
 inclusion rule statistics.}
+
+\item{cohortSubsetAttritionTable}{Name of the subset attrition table for storing subset operator attrition.}
+
+\item{cohortChecksumTable}{Stores the checksum of the cohort used and the time generation starts and ends}
 }
 \value{
 A list of the table names as specified in the parameters to this function.

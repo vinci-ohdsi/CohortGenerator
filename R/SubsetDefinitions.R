@@ -1,4 +1,4 @@
-# Copyright 2025 Observational Health Data Sciences and Informatics
+# Copyright 2026 Observational Health Data Sciences and Informatics
 #
 # This file is part of CohortGenerator
 #
@@ -38,9 +38,44 @@ CohortSubsetDefinition <- R6::R6Class(
       obj <- classDef$new(item)
       checkmate::assertR6(obj, "SubsetOperator")
       return(obj)
+    },
+    attritionInsert = function(sourceTable, targetOutputPair, operatorSequence, cohortEntry) {
+      sql <- SqlRender::readSql(system.file(
+        "sql",
+        "sql_server",
+        "subsets",
+        "CohortSubsetAttritionInsert.sql",
+        package = "CohortGenerator"
+      ))
+      SqlRender::render(sql,
+        output_cohort_id = targetOutputPair[2],
+        subset_definition_id = self$definitionId,
+        subset_parent_id = targetOutputPair[1],
+        operator_sequence = operatorSequence,
+        cohort_entry = cohortEntry,
+        source_table = sourceTable,
+        warnOnMissingParameters = FALSE
+      )
     }
   ),
   public = list(
+    #' pretty in print
+    #'
+    #' @param ... further arguments passed to or from other methods.
+    print = function(...) {
+      cat(glue::glue("<Cohort Subset Defintion [{self$definitionId}]:\t{self$name}> \n\n"))
+      cat(glue::glue("\tIdentifier expression: \"{self$identifierExpression}\"\n\n"))
+      cat(glue::glue("\tNaming template: \"{self$subsetCohortNameTemplate}\"\n\n"))
+      cat(glue::glue("Contains {length(self$subsetOperators)} operations:"))
+      cat("\n")
+      cat("\n")
+      for (so in self$subsetOperators) {
+        print(so)
+        cat("\n")
+      }
+      cat("\n\n")
+    },
+
     #' @param definition  json or list representation of object
     initialize = function(definition = NULL) {
       if (!is.null(definition)) {
@@ -59,16 +94,16 @@ CohortSubsetDefinition <- R6::R6Class(
     #' @description List representation of object
     toList = function() {
       list(
-        name = jsonlite::unbox(self$name),
-        definitionId = jsonlite::unbox(self$definitionId),
+        name = safeUnbox(self$name),
+        definitionId = safeUnbox(self$definitionId),
         # Note - when there is a base definition that includes multiple calls to the same subset this should be replaced
         subsetOperators = lapply(self$subsetOperators, function(operator) {
           operator$toList()
         }),
-        packageVersion = jsonlite::unbox(as.character(utils::packageVersion("CohortGenerator"))),
-        identifierExpression = jsonlite::unbox(as.character(private$.identifierExpression)),
-        operatorNameConcatString = jsonlite::unbox(as.character(private$.operatorNameConcatString)),
-        subsetCohortNameTemplate = jsonlite::unbox(as.character(private$.subsetCohortNameTemplate))
+        packageVersion = safeUnbox(as.character(utils::packageVersion("CohortGenerator"))),
+        identifierExpression = safeUnbox(as.character(private$.identifierExpression)),
+        operatorNameConcatString = safeUnbox(as.character(private$.operatorNameConcatString)),
+        subsetCohortNameTemplate = safeUnbox(as.character(private$.subsetCohortNameTemplate))
       )
     },
     #' to JSON
@@ -93,24 +128,32 @@ CohortSubsetDefinition <- R6::R6Class(
     #' Returns vector of join, logic, having statements returned by subset operations
     #' @param targetOutputPair              Target output pair
     getSubsetQuery = function(targetOutputPair) {
-      checkmate::assertIntegerish(targetOutputPair, len = 2)
+      checkmate::assertNumeric(targetOutputPair, len = 2)
+      checkmate::assertTRUE(all(targetOutputPair %% 1 == 0))
       checkmate::assertFALSE(targetOutputPair[[1]] == targetOutputPair[[2]])
 
       targetTable <- "#cohort_sub_base"
+
       sql <- c(
         "DELETE FROM @cohort_database_schema.@cohort_table WHERE cohort_definition_id = @output_cohort_id;",
+        "DELETE FROM @cohort_database_schema.@cohort_subset_attrition_table WHERE cohort_definition_id = @output_cohort_id;",
         "DROP TABLE IF EXISTS #cohort_sub_base;",
         "SELECT * INTO #cohort_sub_base FROM @cohort_database_schema.@cohort_table",
         "WHERE cohort_definition_id = @target_cohort_id;"
       )
+      sql <- c(sql, private$attritionInsert(sourceTable = targetTable, targetOutputPair = targetOutputPair, operatorSequence = -1, cohortEntry = 1))
 
       dropTables <- c(targetTable)
-      for (i in 1:length(self$subsetOperators)) {
+      # Build SQL sequentially per operator: append operator SQL, switch to that operator's
+      # output temp table as the new source, track it for cleanup, then record attrition.
+      for (i in seq_along(self$subsetOperators)) {
+        operatorSequence <- i - 1
         subsetOperator <- self$subsetOperators[[i]]
         queryBuilder <- subsetOperator$getQueryBuilder(i)
         sql <- c(sql, queryBuilder$getQuery(targetTable))
         targetTable <- queryBuilder$getTableObjectId()
         dropTables <- c(dropTables, targetTable)
+        sql <- c(sql, private$attritionInsert(sourceTable = targetTable, targetOutputPair = targetOutputPair, operatorSequence = operatorSequence, cohortEntry = 0))
       }
 
       sql <- c(sql, SqlRender::readSql(system.file("sql", "sql_server", "subsets", "CohortSubsetDefinition.sql", package = "CohortGenerator")))
@@ -134,7 +177,8 @@ CohortSubsetDefinition <- R6::R6Class(
     #' @param cohortDefinitionSet           Cohort definition set containing base names
     #' @param targetOutputPair              Target output pair
     getSubsetCohortName = function(cohortDefinitionSet, targetOutputPair) {
-      checkmate::assertIntegerish(targetOutputPair, len = 2)
+      checkmate::assertNumeric(targetOutputPair, len = 2)
+      checkmate::assertTRUE(all(targetOutputPair %% 1 == 0))
       checkmate::assertFALSE(targetOutputPair[[1]] == targetOutputPair[[2]])
       checkmate::assertTRUE(targetOutputPair[[1]] %in% cohortDefinitionSet$cohortId)
       checkmate::assertTRUE(isCohortDefinitionSet(cohortDefinitionSet))
@@ -157,7 +201,9 @@ CohortSubsetDefinition <- R6::R6Class(
     #' Set the targetOutputPairs to be added to a cohort definition set
     #' @param targetIds   list of cohort ids to apply subsetting operations to
     setTargetOutputPairs = function(targetIds) {
-      checkmate::assertIntegerish(targetIds, min.len = 1, upper = 10e11)
+      checkmate::assertNumeric(targetIds, min.len = 1)
+      checkmate::assertTRUE(all(targetIds %% 1 == 0))
+
       definitionId <- self$definitionId
       targetOutputPairs <- list()
 
@@ -191,7 +237,8 @@ CohortSubsetDefinition <- R6::R6Class(
         targetOutputPairs,
         function(targetOutputPair) {
           targetOutputPair <- as.numeric(targetOutputPair)
-          checkmate::assertIntegerish(targetOutputPair, len = 2, upper = 10e11)
+          checkmate::assertNumeric(targetOutputPair, len = 2)
+          checkmate::assertTRUE(all(targetOutputPair %% 1 == 0))
           checkmate::assertFALSE(targetOutputPair[[1]] == targetOutputPair[[2]])
           targetOutputPair
         }
@@ -305,23 +352,22 @@ CohortSubsetDefinition <- R6::R6Class(
 #' @param subsetOperators           list of subsetOperator instances to apply
 #' @param identifierExpression      Expression (or string that converts to expression) that returns an id for an output cohort
 #'                                  the default is dplyr::expr(targetId * 1000 + definitionId)
-#' @param subsetCohortNameTemplate  (optional) SqlRender string template for formatting names of resulting subset cohorts
-#'                                  Can use the variables @baseCohortName, @subsetDefinitionName and @operatorNames.
+#' @param subsetCohortNameTemplate  SqlRender string template for formatting names of resulting subset cohorts
+#'                                  Can use the variables @baseCohortName and @subsetDefinitionName.
 #'                                  This is applied when adding the subset definition to a cohort definition set.
-#' @param operatorNameConcatString  (optional) String to concatenate operator names together when outputting resulting cohort
-#'                                   name
 createCohortSubsetDefinition <- function(name,
                                          definitionId,
                                          subsetOperators,
                                          identifierExpression = NULL,
-                                         operatorNameConcatString = "",
-                                         subsetCohortNameTemplate = "") {
+                                         subsetCohortNameTemplate = "@baseCohortName - @subsetDefinitionName") {
+  checkmate::assertString(name, min.chars = 1)
   subsetDef <- CohortSubsetDefinition$new()
   subsetDef$name <- name
   subsetDef$definitionId <- definitionId
   subsetDef$subsetOperators <- subsetOperators
   subsetDef$identifierExpression <- identifierExpression
-  subsetDef$operatorNameConcatString <- operatorNameConcatString
+  # Set to default to support consistent json serialization with class
+  subsetDef$operatorNameConcatString <- ""
   subsetDef$subsetCohortNameTemplate <- subsetCohortNameTemplate
   return(subsetDef)
 }
@@ -355,6 +401,10 @@ addCohortSubsetDefinition <- function(cohortDefinitionSet,
 
   if (!"isSubset" %in% colnames(cohortDefinitionSet)) {
     cohortDefinitionSet$isSubset <- FALSE
+  }
+
+  if (!"isTemplatedCohort" %in% colnames(cohortDefinitionSet)) {
+    cohortDefinitionSet$isTemplatedCohort <- FALSE
   }
 
   if (!is.null(targetCohortIds)) {
@@ -434,6 +484,7 @@ addCohortSubsetDefinition <- function(cohortDefinitionSet,
           cohortName = subsetCohortName,
           subsetParent = toPair[1],
           isSubset = TRUE,
+          isTemplatedCohort = FALSE,
           sql = subsetSql,
           json = as.character(.toJSON(repr)),
           subsetDefinitionId = subsetDefinitionCopy$definitionId

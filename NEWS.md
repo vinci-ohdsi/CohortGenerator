@@ -1,3 +1,59 @@
+CohortGenerator 1.1.1
+=====================
+
+Bug Fixes
+
+- Prevents duplicate cohort IDs bin `runCohortGeneration` (#275)
+- Fix backwards compatiblity for v0.x cohort subset operator (#276)
+
+
+CohortGenerator 1.1.0
+=====================
+
+New Features
+
+- Adds functions and documentation for computing attrition for cohorts and subsetted cohorts (#123, #79)
+
+CohortGenerator 1.0.2
+=====================
+
+Bug Fixes
+
+- Fix bug where `negate` parameter of `createCohortSubsetOperator` was not passed properly to the SQL statement (#264)
+- Fix deprecation messages (#263)
+- Fix issue with unboxing nulls (#262)
+
+CohortGenerator 1.0.1
+=====================
+
+Bug Fixes
+
+- Remove calls to `lifecycle` and add unit tests
+
+CohortGenerator 1.0.0
+=====================
+
+New Features
+
+- SQL cohorts as first class citizens - SQL templates for non-standard cohorts or large, bulk operations (#133, #247)
+- Remove file-based incremental operations. Creation of database cohort_checksum tables that enables verification of generated cohorts and incremental execution in distributed environments (#206, #131, #254)
+- Abbreviated logging for cohorts already generated (#113)
+- Added `maximumChortDuration` to the LimitSubset operator (#240)
+- Added "recipe" functions for creating indication and restriction subsets (#209)
+- Deprecate subset operator function names and add `operator` suffix (#233)
+- Removes default 'print friendly' long text of subgroup names (#135, #231)
+- Add pretty print to subset definitions that includes SQL and logic definitions (#218)
+
+Bug Fixes
+
+- Limit subset operator produces broken SQL if R `date` of length 0 is passed instead of NULL (#252)
+- Remove warning around finalize (#242)
+
+CohortGenerator 0.12.2
+======================
+
+- Updates unit tests to use lowercase field names (#237)
+
 CohortGenerator 0.12.1
 ======================
 
@@ -9,7 +65,7 @@ CohortGenerator 0.12.0
 
 New Features
 
-- Backwards compatable extension to CohortSubsetOperators and cohortSubsetWindows to allow windowing to be logic of any
+- Backwards compatible extension to CohortSubsetOperators and cohortSubsetWindows to allow windowing to be logic of any
 length
 - Include observation table when creating negative control cohorts (#198)
 - Improvements to cohort subset documentation (#199)

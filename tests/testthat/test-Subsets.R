@@ -21,31 +21,27 @@ test_that("Subset definition", {
     )
   )
   subsetOperations <- list(
-    createCohortSubset(
+    createCohortSubsetOperator(
       name = "Cohort Subset",
       cohortIds = 11,
       cohortCombinationOperator = "all",
       negate = FALSE,
       windows = windowSubsetOperation
     ),
-    createLimitSubset(
+    createLimitSubsetOperator(
       name = "Observation Criteria",
       priorTime = 365,
       followUpTime = 0,
       limitTo = "firstEver"
     ),
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria",
       ageMin = 18,
       ageMax = 64
     )
   )
-  subsetDef <- createCohortSubsetDefinition(
-    name = "test definition",
-    definitionId = 1,
-    subsetOperators = subsetOperations
-  )
-
+  subsetDef <- createCohortSubsetDefinition(name = "test definition", definitionId = 1, subsetOperators = subsetOperations)
+  print(subsetDef)
   for (s in subsetDef$subsetOperators) {
     checkmate::expect_class(s, "SubsetOperator")
   }
@@ -87,14 +83,14 @@ test_that("Subset definition", {
     }
   }
 
-  testDemoSubset <- createDemographicSubset(
+  testDemoSubset <- createDemographicSubsetOperator(
     ageMin = 18,
     ageMax = 64
   )
 
   expect_true(testDemoSubset$isEqualTo(testDemoSubset))
 
-  testDemoSubset2 <- createDemographicSubset(
+  testDemoSubset2 <- createDemographicSubsetOperator(
     gender = "nb",
     ageMin = 18,
     ageMax = 64
@@ -114,7 +110,7 @@ test_that("Subset definition", {
       targetAnchor = "cohortEnd"
     )
   )
-  ccs <- createCohortSubset(
+  ccs <- createCohortSubsetOperator(
     cohortIds = 11,
     cohortCombinationOperator = "all",
     negate = FALSE,
@@ -143,7 +139,7 @@ test_that("Subset definition", {
       targetAnchor = "cohortEnd"
     )
   )
-  invalidCohortSubsetOperator <- createCohortSubset(
+  invalidCohortSubsetOperator <- createCohortSubsetOperator(
     name = "Invalid Cohort Subset",
     cohortIds = 0,
     cohortCombinationOperator = "all",
@@ -164,6 +160,42 @@ test_that("Subset definition", {
 
   invalidCohortSubsetOperator2 <- csd$addSubsetOperator(invalidCohortSubsetOperator)
   expect_equal(invalidCohortSubsetOperator2$toJSON(), csd$toJSON())
+})
+
+
+test_that("Deprecated subset wrapper warnings", {
+  windowSubsetOperation <- list(
+    createSubsetCohortWindow(
+      startDay = -99999,
+      endDay = 99999,
+      targetAnchor = "cohortStart"
+    ),
+    createSubsetCohortWindow(
+      startDay = -99999,
+      endDay = 99999,
+      targetAnchor = "cohortEnd"
+    )
+  )
+
+  expect_warning(
+    createCohortSubset(
+      name = "Cohort Subset",
+      cohortIds = 11,
+      cohortCombinationOperator = "all",
+      negate = FALSE,
+      windows = windowSubsetOperation
+    ),
+    "createCohortSubsetOperator"
+  )
+
+  expect_warning(
+    createDemographicSubset(
+      name = "Demographic Criteria",
+      ageMin = 18,
+      ageMax = 64
+    ),
+    "createDemographicSubsetOperator"
+  )
 })
 
 
@@ -190,20 +222,21 @@ test_that("Saving and loading definitions via attributes", {
     )
   )
   subsetOperations <- list(
-    createCohortSubset(
+    createCohortSubsetOperator(
       name = "Cohort Subset",
       cohortIds = 11,
       cohortCombinationOperator = "all",
       negate = FALSE,
       windows = subsetOperationsWindow
     ),
-    createLimitSubset(
+    createLimitSubsetOperator(
       priorTime = 365,
       followUpTime = 0,
       minimumCohortDuration = 1,
+      maximumCohortDuration = 365,
       limitTo = "firstEver"
     ),
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria",
       ageMin = 18,
       ageMax = 64
@@ -274,14 +307,14 @@ test_that("subset generation", {
     )
   )
   subsetOperations <- list(
-    createCohortSubset(
+    createCohortSubsetOperator(
       name = "Cohort Subset",
       cohortIds = 11,
       cohortCombinationOperator = "all",
       negate = FALSE,
       windows = subsetOperationsWindowLogic
     ),
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria",
       ageMin = 18,
       ageMax = 64
@@ -310,9 +343,6 @@ test_that("subset generation", {
   expect_true("isSubset" %in% colnames(cohortDefinitionSetWithSubset))
   expect_true("subsetParent" %in% colnames(cohortDefinitionSetWithSubset))
 
-  recordKeepingFolder <- tempfile("gen_subsets")
-  unlink(recordKeepingFolder)
-  on.exit(unlink(recordKeepingFolder), add = TRUE)
   cohortTableNames <- getCohortTableNames(cohortTable = "gen_subsets")
   createCohortTables(
     connectionDetails = connectionDetails,
@@ -326,8 +356,7 @@ test_that("subset generation", {
     cohortDatabaseSchema = "main",
     cohortTableNames = cohortTableNames,
     cohortDefinitionSet = cohortDefinitionSetWithSubset,
-    incremental = TRUE,
-    incrementalFolder = recordKeepingFolder
+    incremental = TRUE
   )
   # 2nd run using incremental mode to verify that all cohorts are created
   # but the return indicates that nothing new was generated
@@ -337,13 +366,11 @@ test_that("subset generation", {
     cohortDatabaseSchema = "main",
     cohortTableNames = cohortTableNames,
     cohortDefinitionSet = cohortDefinitionSetWithSubset,
-    incremental = TRUE,
-    incrementalFolder = recordKeepingFolder
+    incremental = TRUE
   )
 
   expect_equal(nrow(cohortsGenerated), nrow(cohortDefinitionSetWithSubset))
   expect_true(all(cohortsGenerated$generationStatus == "SKIPPED"))
-  unlink(recordKeepingFolder, recursive = TRUE)
 })
 
 test_that("Subset definition creation and retrieval with definitionId != 1", {
@@ -366,7 +393,7 @@ test_that("Subset definition creation and retrieval with definitionId != 1", {
     name = "Male Only",
     definitionId = 2,
     subsetOperators = list(
-      CohortGenerator::createDemographicSubset(
+      CohortGenerator::createDemographicSubsetOperator(
         name = "Male",
         gender = 8507
       )
@@ -391,7 +418,7 @@ test_that("Test overwriteExisting", {
     verbose = FALSE
   )
   subsetOperations <- list(
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria",
       ageMin = 18,
       ageMax = 64
@@ -434,7 +461,7 @@ test_that("Subset operator serialization tests", {
   so2 <- SubsetOperator$new()
   so2$name <- "SubsetOp2"
 
-  ds1 <- createDemographicSubset(
+  ds1 <- createDemographicSubsetOperator(
     name = "Demographic Criteria",
     ageMin = 18,
     ageMax = 64,
@@ -454,7 +481,7 @@ test_that("Subset operator serialization tests", {
   expect_equal(ds1$getRace(), 8527)
   expect_equal(ds1$getEthnicity(), 38003563)
 
-  ls1 <- createLimitSubset(
+  ls1 <- createLimitSubsetOperator(
     name = "Limit Subset 1",
     priorTime = 365,
     followUpTime = 0,
@@ -464,7 +491,7 @@ test_that("Subset operator serialization tests", {
   )
   expect_silent(ls1$toJSON())
 
-  ls2 <- createLimitSubset(
+  ls2 <- createLimitSubsetOperator(
     name = "Limit Subset 2",
     priorTime = 365,
     followUpTime = 0,
@@ -473,6 +500,52 @@ test_that("Subset operator serialization tests", {
     calendarEndDate = "2013-12-31"
   )
   expect_silent(ls2$toJSON())
+})
+
+test_that("CohortSubsetOperator supports old style startWindow and endWindow definitions", {
+  definition <- list(
+    name = "AntiVegfKidneyFailure old style cohort subset",
+    cohortIds = 1,
+    cohortCombinationOperator = "any",
+    negate = FALSE,
+    startWindow = list(
+      startDay = 0,
+      endDay = 0,
+      targetAnchor = "cohortStart"
+    ),
+    endWindow = list(
+      startDay = 0,
+      endDay = 0,
+      targetAnchor = "cohortEnd"
+    )
+  )
+
+  cohortSubsetOperator <- CohortSubsetOperator$new(definition)
+
+  expect_length(cohortSubsetOperator$windows, 2)
+  expect_s3_class(cohortSubsetOperator$windows[[1]], "SubsetCohortWindow")
+  expect_s3_class(cohortSubsetOperator$windows[[2]], "SubsetCohortWindow")
+  expect_equal(cohortSubsetOperator$windows[[1]]$subsetAnchor, "cohortStart")
+  expect_equal(cohortSubsetOperator$windows[[2]]$subsetAnchor, "cohortEnd")
+})
+
+test_that("CohortSubsetOperator old style definitions require both windows", {
+  definition <- list(
+    name = "Invalid old style cohort subset",
+    cohortIds = 1,
+    cohortCombinationOperator = "any",
+    negate = FALSE,
+    startWindow = list(
+      startDay = 0,
+      endDay = 0,
+      targetAnchor = "cohortStart"
+    )
+  )
+
+  expect_error(
+    CohortSubsetOperator$new(definition),
+    message = "Only one of startWindow and endWindow"
+  )
 })
 
 test_that("Subset name templates function", {
@@ -486,12 +559,12 @@ test_that("Subset name templates function", {
     verbose = FALSE
   )
   subsetOperations <- list(
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria 1",
       ageMin = 18,
       ageMax = 64
     ),
-    createDemographicSubset(
+    createDemographicSubsetOperator(
       name = "Demographic Criteria 2",
       ageMin = 32,
       ageMax = 48
@@ -501,15 +574,14 @@ test_that("Subset name templates function", {
     name = "test definition 123",
     definitionId = 1,
     subsetOperators = subsetOperations,
-    subsetCohortNameTemplate = "FOOO @baseCohortName @subsetDefinitionName @operatorNames",
-    operatorNameConcatString = "zzzz"
+    subsetCohortNameTemplate = "FOOO @baseCohortName @subsetDefinitionName"
   )
 
   cohortDefinitionSetWithSubset <- cohortDefinitionSet %>%
     CohortGenerator::addCohortSubsetDefinition(subsetDef)
 
   # Check name templates are applied
-  expect_true(all(grepl("FOOO (.+) test definition 123 Demographic Criteria 1zzzzDemographic Criteria 2", cohortDefinitionSetWithSubset$cohortName[5:8])))
+  expect_true(all(grepl("FOOO (.+) test definition 123", cohortDefinitionSetWithSubset$cohortName[5:8])))
 
   # Internal copy call
   cds2 <- .copySubsetDefinitions(cohortDefinitionSet, cohortDefinitionSetWithSubset)
@@ -531,7 +603,6 @@ test_that("Basic Negate logic check", {
 
   jsonOutput <- window1$toJSON()
   expect_true(grepl('"negate": true', jsonOutput))
-
 
 
   # Testing if Negate (AND NOT) IS FOUND IN SQL QUERY
@@ -561,8 +632,8 @@ test_that("Basic Negate logic check", {
     name = "requiring",
     definitionId = 6,
     subsetOperators = list(
-      CohortGenerator::createLimitSubset(name = "first exposure", limitTo = "firstEver"),
-      CohortGenerator::createCohortSubset(
+      CohortGenerator::createLimitSubsetOperator(name = "first exposure", limitTo = "firstEver"),
+      CohortGenerator::createCohortSubsetOperator(
         name = "with ibuprofen after a year",
         cohortIds = 3,
         cohortCombinationOperator = "any",
@@ -577,8 +648,30 @@ test_that("Basic Negate logic check", {
 
   sqlForCohort1006 <- cohortDefinitionSet[cohortDefinitionSet$cohortId == 1006, "sql"]
   expect_true(grepl("AND NOT", sqlForCohort1006, ignore.case = TRUE))
-})
 
+  # Ensure NEGATE = TRUE produces a RIGHT JOIN
+  op <- CohortGenerator::createCohortSubsetOperator(
+    name = "Test negate",
+    cohortIds = c(1),
+    windows = list(
+      CohortGenerator::createSubsetCohortWindow(
+        startDay = 1,
+        endDay = 365,
+        targetAnchor = "cohortEnd",
+        subsetAnchor = "cohortStart"
+      ),
+      CohortGenerator::createSubsetCohortWindow(
+        startDay = 366,
+        endDay = 99999,
+        targetAnchor = "cohortEnd",
+        subsetAnchor = "cohortStart"
+      )
+    ),
+    negate = TRUE,
+    cohortCombinationOperator = "any"
+  )
+  expect_true(grepl("RIGHT JOIN foo", op$getQueryBuilder(1)$getQuery("foo"), ignore.case = TRUE))
+})
 
 
 test_that("Subset logic checks", {
@@ -629,7 +722,7 @@ test_that("Subset logic checks", {
     name = "first ever",
     definitionId = 101,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         name = "first ever",
         limitTo = "firstEver"
       )
@@ -640,7 +733,7 @@ test_that("Subset logic checks", {
     name = "earliestRemaining",
     definitionId = 102,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         name = "earliestRemaining",
         limitTo = "earliestRemaining",
         priorTime = 500
@@ -652,7 +745,7 @@ test_that("Subset logic checks", {
     name = "latestRemaining",
     definitionId = 103,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         name = "latestRemaining",
         limitTo = "latestRemaining",
         followUpTime = 800
@@ -664,7 +757,7 @@ test_that("Subset logic checks", {
     name = "lastEver",
     definitionId = 104,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         name = "lastEver",
         limitTo = "lastEver"
       )
@@ -675,7 +768,7 @@ test_that("Subset logic checks", {
     name = "calendar",
     definitionId = 105,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         name = "2003 - 2006",
         calendarStartDate = "2003-01-01",
         calendarEndDate = "2006-12-31",
@@ -687,7 +780,7 @@ test_that("Subset logic checks", {
     name = "firstEver + calendar",
     definitionId = 106,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         limitTo = "firstEver",
         name = "2003 - 2006",
         calendarStartDate = "2003-01-01",
@@ -700,7 +793,7 @@ test_that("Subset logic checks", {
     name = "earliestRemaining + calendar",
     definitionId = 107,
     subsetOperators = list(
-      createLimitSubset(
+      createLimitSubsetOperator(
         limitTo = "earliestRemaining",
         name = "2003 - 2006",
         priorTime = 500,
@@ -715,7 +808,7 @@ test_that("Subset logic checks", {
     name = "Age subset",
     definition = 201,
     subsetOperators = list(
-      createDemographicSubset(
+      createDemographicSubsetOperator(
         name = "Age 2-5",
         ageMin = 2,
         ageMax = 5
@@ -727,7 +820,7 @@ test_that("Subset logic checks", {
     name = "Gender subset",
     definition = 202,
     subsetOperators = list(
-      createDemographicSubset(
+      createDemographicSubsetOperator(
         name = "Gender = 8532",
         gender = 8532
       )
@@ -738,7 +831,7 @@ test_that("Subset logic checks", {
     name = "Race subset",
     definition = 203,
     subsetOperators = list(
-      createDemographicSubset(
+      createDemographicSubsetOperator(
         name = "Race = 0",
         race = 0
       )
@@ -749,7 +842,7 @@ test_that("Subset logic checks", {
     name = "Race subset",
     definition = 204,
     subsetOperators = list(
-      createDemographicSubset(
+      createDemographicSubsetOperator(
         name = "Ethnicity = 0",
         ethnicity = 0
       )
@@ -777,7 +870,7 @@ test_that("Subset logic checks", {
     name = "Subset overlaps cohort start",
     definition = 301,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "subsetOverlapTargetStart",
         cohortIds = c(2),
         negate = F,
@@ -805,7 +898,7 @@ test_that("Subset logic checks", {
     name = "Subset overlaps entire target cohort period",
     definition = 302,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "subsetSubsumesTarget",
         cohortIds = c(3),
         negate = F,
@@ -834,7 +927,7 @@ test_that("Subset logic checks", {
     name = "Subset subsumed by entire target cohort period",
     definition = 303,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "targetSubsumesSubset",
         cohortIds = c(4),
         negate = F,
@@ -862,7 +955,7 @@ test_that("Subset logic checks", {
     name = "Subset overlaps cohort end",
     definition = 304,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "subsetOverlapTargetEnd",
         cohortIds = c(5),
         negate = F,
@@ -890,7 +983,7 @@ test_that("Subset logic checks", {
     name = "Subset does NOT overlap cohort end - negate",
     definition = 305,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "subsetOverlapTargetEndNegate",
         cohortIds = c(5),
         negate = T,
@@ -918,7 +1011,7 @@ test_that("Subset logic checks", {
     name = "Subset overlaps target start - tests combo == all",
     definition = 306,
     subsetOperators = list(
-      createCohortSubset(
+      createCohortSubsetOperator(
         name = "subsetOverlapTargetStartComboAll",
         cohortIds = c(2, 3),
         negate = F,
@@ -1080,33 +1173,34 @@ test_that("Subset logic checks", {
 
   cohorts <- DatabaseConnector::querySql(
     connection = connection,
-    sql = "SELECT * FROM main.cohort ORDER BY COHORT_DEFINITION_ID, SUBJECT_ID, COHORT_START_DATE;"
+    sql = "SELECT * FROM main.cohort ORDER BY COHORT_DEFINITION_ID, SUBJECT_ID, COHORT_START_DATE;",
+    snakeCaseToCamelCase = TRUE
   )
 
   # Check the cohort counts to verify the logic worked as expected ---------
   # cohorts # <------ USE TO SEE THE COHORTS TO VERIFY THE INFO BELOW
 
   # Limit subsets cohort definition 1100 range ------
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1101, ]$COHORT_START_DATE[[1]], lubridate::date("2001-01-01")) # 1101 - First Ever
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1102, ]$COHORT_START_DATE[[1]], lubridate::date("2003-01-01")) # 1102 - Earliest Remaining
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1103, ]$COHORT_START_DATE[[1]], lubridate::date("2005-01-01")) # 1103 - Latest Remaining
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1104, ]$COHORT_START_DATE[[1]], lubridate::date("2007-01-01")) # 1104 - Last Ever
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1105, ]$COHORT_START_DATE[[1]], lubridate::date("2003-01-01")) # 1105 - Calendar #1
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1105, ]$COHORT_START_DATE[[2]], lubridate::date("2005-01-01")) # 1105 - Calendar #2
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1106, ]), 0) # 1106 - First ever + calendar time that restricts to no one
-  expect_equal(cohorts[cohorts$COHORT_DEFINITION_ID == 1107, ]$COHORT_START_DATE[[1]], lubridate::date("2003-01-01")) # 1107 - Earliest remaining+calendar restriction
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1101, ]$cohortStartDate[[1]], lubridate::date("2001-01-01")) # 1101 - First Ever
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1102, ]$cohortStartDate[[1]], lubridate::date("2003-01-01")) # 1102 - Earliest Remaining
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1103, ]$cohortStartDate[[1]], lubridate::date("2005-01-01")) # 1103 - Latest Remaining
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1104, ]$cohortStartDate[[1]], lubridate::date("2007-01-01")) # 1104 - Last Ever
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1105, ]$cohortStartDate[[1]], lubridate::date("2003-01-01")) # 1105 - Calendar #1
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1105, ]$cohortStartDate[[2]], lubridate::date("2005-01-01")) # 1105 - Calendar #2
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1106, ]), 0) # 1106 - First ever + calendar time that restricts to no one
+  expect_equal(cohorts[cohorts$cohortDefinitionId == 1107, ]$cohortStartDate[[1]], lubridate::date("2003-01-01")) # 1107 - Earliest remaining+calendar restriction
 
   # Demographic subsets cohort definition 1200 range ------
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1201, ]), 2) # 1201 - Age 2-5
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1202, ]), 4) # 1202 - Gender
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1203, ]), 4) # 1203 - Race
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1204, ]), 4) # 1204 - Ethnicity
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1201, ]), 2) # 1201 - Age 2-5
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1202, ]), 4) # 1202 - Gender
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1203, ]), 4) # 1203 - Race
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1204, ]), 4) # 1204 - Ethnicity
 
   # Cohort subsets cohort definition 1300 range ------
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1301, ]), 2) # 1301 - Subset overlaps cohort start
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1302, ]), 2) # 1302 - Subset overlaps entire target cohort period
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1303, ]), 2) # 1303 - Subset subsumed by entire target cohort period
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1304, ]), 2) # 1304 - Subset overlaps cohort end
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1305, ]), 2) # 1305 - Subset does NOT overlap cohort end - negate
-  expect_equal(nrow(cohorts[cohorts$COHORT_DEFINITION_ID == 1306, ]), 2) # 1306 - Subset overlaps target start - tests combo == all
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1301, ]), 2) # 1301 - Subset overlaps cohort start
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1302, ]), 2) # 1302 - Subset overlaps entire target cohort period
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1303, ]), 2) # 1303 - Subset subsumed by entire target cohort period
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1304, ]), 2) # 1304 - Subset overlaps cohort end
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1305, ]), 2) # 1305 - Subset does NOT overlap cohort end - negate
+  expect_equal(nrow(cohorts[cohorts$cohortDefinitionId == 1306, ]), 2) # 1306 - Subset overlaps target start - tests combo == all
 })

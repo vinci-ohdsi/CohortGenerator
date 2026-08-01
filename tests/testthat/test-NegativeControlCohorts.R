@@ -78,12 +78,39 @@ test_that("Call generateNegativeControlOutcomeCohorts before creating cohort tab
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
       cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "all",
       detectOnDescendants = TRUE
     )
   )
 })
+
+test_that("Call generateNegativeControlOutcomeCohorts with incrementalFolder specified", {
+  ncSet <- getNegativeControlOutcomeCohortsForTest()
+  cohortTableNames <- getCohortTableNames(cohortTable = "inc_folder_cohort")
+  createCohortTables(
+    connectionDetails = connectionDetails,
+    cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames
+  )
+  expect_warning(
+    generateNegativeControlOutcomeCohorts(
+      connectionDetails = connectionDetails,
+      cdmDatabaseSchema = "main",
+      cohortDatabaseSchema = "main",
+      cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
+      negativeControlOutcomeCohortSet = ncSet,
+      occurrenceType = "all",
+      detectOnDescendants = TRUE,
+      incremental = TRUE,
+      incrementalFolder = "folder"
+    ),
+    message = "(incrementalFolder parameter is no longer used)"
+  )
+})
+
 
 test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'all' and detectOnDescendants == FALSE", {
   cohortTableNames <- getCohortTableNames(cohortTable = "ot_all_dod_f")
@@ -101,6 +128,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'al
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
       cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "all",
       detectOnDescendants = FALSE
@@ -124,6 +152,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
       cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "first",
       detectOnDescendants = FALSE
@@ -147,6 +176,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'al
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
       cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "all",
       detectOnDescendants = TRUE
@@ -169,6 +199,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
       connection = connection,
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
+      cohortTableNames = cohortTableNames,
       cohortTable = cohortTableNames$cohortTable,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "first",
@@ -191,6 +222,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with custom cohort ids", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "first",
@@ -220,6 +252,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
       connection = connection,
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
+      cohortTableNames = cohortTableNames,
       cohortTable = cohortTableNames$cohortTable,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "first",
@@ -247,6 +280,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
       connection = connection,
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
+      cohortTableNames = cohortTableNames,
       cohortTable = cohortTableNames$cohortTable,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "first",
@@ -268,6 +302,7 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
       connection = connection,
       cdmDatabaseSchema = "main",
       cohortDatabaseSchema = "main",
+      cohortTableNames = cohortTableNames,
       cohortTable = cohortTableNames$cohortTable,
       negativeControlOutcomeCohortSet = ncSet,
       occurrenceType = "first",
@@ -286,8 +321,6 @@ test_that("Call generateNegativeControlOutcomeCohorts with occurrenceType == 'fi
 })
 
 test_that("incremental mode", {
-  incrementalFolder <- tempfile()
-  on.exit(unlink(incrementalFolder, recursive = TRUE, force = TRUE))
   cohortTableNames <- getCohortTableNames(cohortTable = "nc_custom_cohortid")
   connection <- DatabaseConnector::connect(connectionDetails = connectionDetails)
   on.exit(DatabaseConnector::disconnect(connection), add = TRUE)
@@ -301,16 +334,15 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "first",
     detectOnDescendants = TRUE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 
   expect_equal(res, "FINISHED")
-  checkmate::expect_file_exists(file.path(incrementalFolder, "GeneratedNegativeControls.csv"))
   cohortCounts <- getCohortCounts(
     connection = connection,
     cohortDatabaseSchema = "main",
@@ -322,11 +354,11 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "first",
     detectOnDescendants = TRUE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 
@@ -337,11 +369,11 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "first",
     detectOnDescendants = FALSE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 
@@ -352,11 +384,11 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "first",
     detectOnDescendants = FALSE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 
@@ -367,11 +399,11 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "all",
     detectOnDescendants = FALSE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 
@@ -382,11 +414,11 @@ test_that("incremental mode", {
     connection = connection,
     cdmDatabaseSchema = "main",
     cohortDatabaseSchema = "main",
+    cohortTableNames = cohortTableNames,
     cohortTable = cohortTableNames$cohortTable,
     negativeControlOutcomeCohortSet = ncSet,
     occurrenceType = "all",
     detectOnDescendants = FALSE,
-    incrementalFolder = incrementalFolder,
     incremental = TRUE
   )
 

@@ -18,6 +18,7 @@ editor_options:
 
 ```{r setup, include=FALSE}
 old <- options(width = 80)
+rsErrorsSuppressed <- options(rstudio.connectionObserver.errorsSuppressed = TRUE)
 knitr::opts_chunk$set(
   cache = FALSE,
   comment = "#>",
@@ -159,7 +160,7 @@ getCohortCounts(
 
 ### Cohort Statistics (Inclusion Rule Statistics)
 
-Cohorts defined in ATLAS may define one or more inclusion criteria as part of the cohort's logic. As part of cohort generation, we may want to capture these cohort statistics for use in other packages. For example, [CohortDiagnostics](https://ohdsi.github.io/CohortDiagnostics) has functionality that allows for review of inclusion rule statistics to understand how these rules may materialize between data sources. 
+Cohorts defined in ATLAS may define one or more inclusion criteria as part of the cohort's logic. As part of cohort generation, we may want to capture these cohort statistics for use in other packages. For example, [CohortDiagnostics](https://ohdsi.github.io/CohortDiagnostics/) has functionality that allows for review of inclusion rule statistics to understand how these rules may materialize between data sources. 
 
 Here we will review how to generate cohorts with inclusion rule statistics and how to export these results for use by downstream packages such as CohortDiagnostics. If you have constructed your cohorts in ATLAS, you can again use the [exportCohortDefinitionSet](https://ohdsi.github.io/ROhdsiWebApi/reference/exportCohortDefinitionSet.html) function of the `ROhdsiWebApi` package. The [exportCohortDefinitionSet](https://ohdsi.github.io/ROhdsiWebApi/reference/exportCohortDefinitionSet.html) function has an additional parameter called `generateStats` which when set to TRUE will include the SQL necessary to generate the cohort statistics.
 
@@ -284,12 +285,11 @@ generateCohortSet(
   cohortDatabaseSchema = "main",
   cohortTableNames = cohortTableNames,
   cohortDefinitionSet = cohortDefinitionSet,
-  incremental = TRUE,
-  incrementalFolder = file.path(someFolder, "RecordKeeping")
+  incremental = TRUE
 )
 ```
 
-Here we indicate that we are performing this operational incrementally by specifying `incremental = TRUE` and by specifying a folder for holding a record keeping file to track where cohorts are generated: `incrementalFolder = file.path(someFolder, "RecordKeeping")`. Once a cohort is generated in incremental mode, the cohort ID and a checksum of the cohort SQL are saved in the `incrementalFolder` in a file called `GeneratedCohorts.csv`. If we attempt to re-generate the same cohort set in incremental mode, `generateCohortSet` will inspect the SQL for each cohort in the `cohortDefinitionSet` and if the checksum of that cohort matches the checksum found in the `incrementalFolder` for the same cohort ID, the generation is skipped. To illustrate how this looks:
+Here we indicate that we are performing this operational incrementally by specifying `incremental = TRUE`. Once a cohort is generated in incremental mode, the cohort ID and a checksum of the cohort SQL are saved in a checksum table within the cohort database schema. If we attempt to re-generate the same cohort set in incremental mode, `generateCohortSet` will inspect the SQL for each cohort in the `cohortDefinitionSet` and if the checksum of that cohort matches the checksum found in the table for the same cohort ID, the generation is skipped. To illustrate how this looks:
 
 ```{r}
 generateCohortSet(
@@ -298,17 +298,10 @@ generateCohortSet(
   cohortDatabaseSchema = "main",
   cohortTableNames = cohortTableNames,
   cohortDefinitionSet = cohortDefinitionSet,
-  incremental = TRUE,
-  incrementalFolder = file.path(someFolder, "RecordKeeping")
+  incremental = TRUE
 )
 ```
-
-#### Potential Pitfalls of Incremental Mode
-
-Incremental mode makes some assumptions to provide a more flexible way to generate cohorts. These assumptions come with some risks that we would like to highlight:
-
-- **Record keeping files**: The incremental approach for cohort generation makes use of a record keeping file to check if a cohort has already been generated. It does **not** check the database to verify this so you need to take care and preserve the file system where you store the record keeping file. If the file is removed, CohortGenerator will simply repeat the cohort generation process.
-
 ```{r results='hide'}
 options(old)
+options(rsErrorsSuppressed)
 ```

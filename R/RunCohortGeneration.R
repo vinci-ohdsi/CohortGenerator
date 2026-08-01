@@ -1,4 +1,4 @@
-# Copyright 2025 Observational Health Data Sciences and Informatics
+# Copyright 2026 Observational Health Data Sciences and Informatics
 #
 # This file is part of CohortGenerator
 #
@@ -65,7 +65,7 @@
 #'
 #' @param incrementalFolder If \code{incremental = TRUE}, specify a folder where
 #'                          records are kept of which definition has been
-#'                          executed.
+#'                          executed. (deprecated)
 #'
 #' @export
 runCohortGeneration <- function(connectionDetails,
@@ -103,6 +103,17 @@ runCohortGeneration <- function(connectionDetails,
   checkmate::assert_logical(stopOnError, add = errorMessages)
   checkmate::reportAssertions(collection = errorMessages)
 
+  if (!is.null(cohortDefinitionSet) && !is.null(negativeControlOutcomeCohortSet)) {
+    duplicatedCohortIds <- intersect(cohortDefinitionSet$cohortId, negativeControlOutcomeCohortSet$cohortId)
+    if (length(duplicatedCohortIds) > 0) {
+      stop(
+        "Cannot generate! Duplicate cohort IDs found across your cohortDefinitionSet and negativeControlOutcomeCohortSet: ",
+        paste(duplicatedCohortIds, collapse = ","),
+        ". Please fix your cohort IDs and try again."
+      )
+    }
+  }
+
   # Establish the connection and ensure the cleanup is performed
   connection <- DatabaseConnector::connect(connectionDetails)
   on.exit(DatabaseConnector::disconnect(connection))
@@ -110,6 +121,10 @@ runCohortGeneration <- function(connectionDetails,
   # Create the export folder
   if (!dir.exists(outputFolder)) {
     dir.create(outputFolder, recursive = T)
+  }
+
+  if (!is.null(incrementalFolder)) {
+    warning("incrementalFolder parameter is no longer used and will be removed in a future version")
   }
 
   # Create the cohort tables
@@ -131,8 +146,7 @@ runCohortGeneration <- function(connectionDetails,
     outputFolder = outputFolder,
     databaseId = databaseId,
     minCellCount = minCellCount,
-    incremental = incremental,
-    incrementalFolder = incrementalFolder
+    incremental = incremental
   )
 
   generateAndExportNegativeControls(
@@ -147,8 +161,7 @@ runCohortGeneration <- function(connectionDetails,
     outputFolder = outputFolder,
     databaseId = databaseId,
     minCellCount = minCellCount,
-    incremental = incremental,
-    incrementalFolder = incrementalFolder
+    incremental = incremental
   )
 
   # Export the results data model specification
@@ -170,8 +183,7 @@ generateAndExportCohorts <- function(connection,
                                      outputFolder,
                                      databaseId,
                                      minCellCount,
-                                     incremental,
-                                     incrementalFolder) {
+                                     incremental) {
   # Generate the cohorts
   cohortsGenerated <- createEmptyResult("cg_cohort_generation")
   cohortsGeneratedFileName <- file.path(outputFolder, "cg_cohort_generation.csv")
@@ -187,8 +199,7 @@ generateAndExportCohorts <- function(connection,
       cohortTableNames = cohortTableNames,
       cohortDefinitionSet = cohortDefinitionSet,
       stopOnError = stopOnError,
-      incremental = incremental,
-      incrementalFolder = incrementalFolder
+      incremental = incremental
     )
 
     cohortCountsFromDb <- getCohortCounts(
@@ -203,32 +214,24 @@ generateAndExportCohorts <- function(connection,
     cohortCounts <- cohortCountsFromDb[names(cohortCounts)]
   }
 
-  # Save the generation information
-  rlang::inform("Saving cohort generation information")
-  if (!is.null(cohortsGenerated) && nrow(cohortsGenerated) > 0) {
-    cohortsGenerated$databaseId <- databaseId
-    # Remove any cohorts that were skipped
-    cohortsGenerated <- cohortsGenerated[toupper(cohortsGenerated$generationStatus) != "SKIPPED", ]
-    if (incremental) {
-      # Format the data for saving
-      names(cohortsGenerated) <- SqlRender::camelCaseToSnakeCase(names(cohortsGenerated))
-      saveIncremental(
-        data = cohortsGenerated,
-        fileName = cohortsGeneratedFileName,
-        cohort_id = cohortsGenerated$cohort_id
-      )
-    } else {
-      writeCsv(
-        x = cohortsGenerated,
-        file = cohortsGeneratedFileName
-      )
-    }
-  }
+  computedChecksums <- getLastGeneratedCohortChecksums(
+    connection = connection,
+    cohortDatabaseSchema = cohortDatabaseSchema,
+    cohortTableNames = cohortTableNames
+  )
+  computedChecksums$databaseId <- databaseId
+  computedChecksums$generationStatus <- "COMPLETE"
+
+  writeCsv(
+    x = computedChecksums,
+    file = cohortsGeneratedFileName
+  )
 
   rlang::inform("Saving cohort counts")
   cohortCounts <- cohortCounts %>%
     enforceMinCellValue("cohortEntries", minCellCount) %>%
     enforceMinCellValue("cohortSubjects", minCellCount)
+
   writeCsv(
     x = cohortCounts,
     file = cohortCountsFileName
@@ -249,6 +252,18 @@ generateAndExportCohorts <- function(connection,
     tablePrefix = "cg_"
   )
 
+  exportCohortSubsetStatsTables(
+    connection = connection,
+    cohortTableNames = cohortTableNames,
+    cohortDatabaseSchema = cohortDatabaseSchema,
+    cohortSubsetStatisticsFolder = outputFolder,
+    snakeCaseToCamelCase = FALSE,
+    fileNamesInSnakeCase = TRUE,
+    databaseId = databaseId,
+    minCellCount = minCellCount,
+    tablePrefix = "cg_"
+  )
+
   # Export the cohort definition set
   rlang::inform("Saving cohort definition set")
   exportCohortDefinitionSet(outputFolder, cohortDefinitionSet)
@@ -265,8 +280,7 @@ generateAndExportNegativeControls <- function(connection,
                                               outputFolder,
                                               databaseId,
                                               minCellCount,
-                                              incremental,
-                                              incrementalFolder) {
+                                              incremental) {
   # Generate any negative controls
   negativeControlOutcomes <- createEmptyResult("cg_cohort_definition_neg_ctrl")
   negativeControlOutcomesFileName <- file.path(outputFolder, "cg_cohort_definition_neg_ctrl.csv")
@@ -277,13 +291,12 @@ generateAndExportNegativeControls <- function(connection,
       connection = connection,
       cdmDatabaseSchema = cdmDatabaseSchema,
       cohortDatabaseSchema = cohortDatabaseSchema,
-      cohortTable = cohortTableNames$cohortTable,
+      cohortTableNames = cohortTableNames,
       negativeControlOutcomeCohortSet = negativeControlOutcomeCohortSet,
       tempEmulationSchema = tempEmulationSchema,
       occurrenceType = occurrenceType,
       detectOnDescendants = detectOnDescendants,
-      incremental = incremental,
-      incrementalFolder = incrementalFolder
+      incremental = incremental
     )
 
     # Assemble the negativeControlOutcomes for export

@@ -1,4 +1,4 @@
-# Copyright 2025 Observational Health Data Sciences and Informatics
+# Copyright 2026 Observational Health Data Sciences and Informatics
 #
 # This file is part of CohortGenerator
 #
@@ -35,6 +35,8 @@
 #'                                     inclusion rule statistics.
 #' @param cohortCensorStatsTable       Name of the censor stats table, one of the tables for storing
 #'                                     inclusion rule statistics.
+#' @param cohortSubsetAttritionTable   Name of the subset attrition table for storing subset operator attrition.
+#' @param cohortChecksumTable          Stores the checksum of the cohort used and the time generation starts and ends
 #'
 #' @returns
 #' A list of the table names as specified in the parameters to this function.
@@ -46,7 +48,9 @@ getCohortTableNames <- function(cohortTable = "cohort",
                                 cohortInclusionResultTable = paste0(cohortTable, "_inclusion_result"),
                                 cohortInclusionStatsTable = paste0(cohortTable, "_inclusion_stats"),
                                 cohortSummaryStatsTable = paste0(cohortTable, "_summary_stats"),
-                                cohortCensorStatsTable = paste0(cohortTable, "_censor_stats")) {
+                                cohortCensorStatsTable = paste0(cohortTable, "_censor_stats"),
+                                cohortSubsetAttritionTable = paste0(cohortTable, "_subset_attrition"),
+                                cohortChecksumTable = paste0(cohortTable, "_checksum")) {
   return(list(
     cohortTable = cohortTable,
     cohortSampleTable = cohortSampleTable,
@@ -54,7 +58,9 @@ getCohortTableNames <- function(cohortTable = "cohort",
     cohortInclusionResultTable = cohortInclusionResultTable,
     cohortInclusionStatsTable = cohortInclusionStatsTable,
     cohortSummaryStatsTable = cohortSummaryStatsTable,
-    cohortCensorStatsTable = cohortCensorStatsTable
+    cohortCensorStatsTable = cohortCensorStatsTable,
+    cohortSubsetAttritionTable = cohortSubsetAttritionTable,
+    cohortChecksumTable = cohortChecksumTable
   ))
 }
 
@@ -121,6 +127,8 @@ createCohortTables <- function(connectionDetails = NULL,
       create_cohort_inclusion_stats_table = createTableFlagList$cohortInclusionStatsTable,
       create_cohort_summary_stats_table = createTableFlagList$cohortSummaryStatsTable,
       create_cohort_censor_stats_table = createTableFlagList$cohortCensorStatsTable,
+      create_cohort_subset_attrition_table = createTableFlagList$cohortSubsetAttritionTable,
+      create_cohort_checksum_table = createTableFlagList$cohortChecksumTable,
       cohort_table = cohortTableNames$cohortTable,
       cohort_sample_table = cohortTableNames$cohortSampleTable,
       cohort_inclusion_table = cohortTableNames$cohortInclusionTable,
@@ -128,6 +136,8 @@ createCohortTables <- function(connectionDetails = NULL,
       cohort_inclusion_stats_table = cohortTableNames$cohortInclusionStatsTable,
       cohort_summary_stats_table = cohortTableNames$cohortSummaryStatsTable,
       cohort_censor_stats_table = cohortTableNames$cohortCensorStatsTable,
+      cohort_subset_attrition_table = cohortTableNames$cohortSubsetAttritionTable,
+      cohort_checksum_table = cohortTableNames$cohortChecksumTable,
       warnOnMissingParameters = TRUE
     )
     sql <- SqlRender::translate(
